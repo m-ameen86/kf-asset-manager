@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Review — {{ app_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="bar">
+  <h1>{{ app_name }}</h1>
+  <span class="spacer"></span>
+  <button class="btn ghost" id="classifyBtn" {{ '' if classify_on else 'disabled title="Set ANTHROPIC_API_KEY to enable"' }}>Suggest with AI</button>
+  <button class="btn" id="exportBtn">Export manifest + crosswalk</button>
+</header>
+
+<div class="wrap">
+{% macro vocab_field(a, field, vocab) %}
+  <div class="field">
+    <label>{{ field.replace('_',' ') }}</label>
+    <input list="dl_{{ field }}" data-field="{{ field }}"
+           value="{{ a['manual_' ~ field] or '' }}"
+           placeholder="{{ a['ai_' ~ field] or '—' }}">
+    {% if a['ai_' ~ field] %}<div class="ai">AI: {{ a['ai_' ~ field] }}</div>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro text_field(a, field) %}
+  <div class="field">
+    <label>{{ field.replace('_',' ') }}</label>
+    <input data-field="{{ field }}" value="{{ a['manual_' ~ field] or '' }}"
+           placeholder="{{ a['ai_' ~ field] or '—' }}">
+    {% if a['ai_' ~ field] %}<div class="ai">AI: {{ a['ai_' ~ field] }}</div>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro asset_card(a, vocab) %}
+  <div class="card" data-uid="{{ a['sha256'] }}">
+    <img class="thumb" loading="lazy" src="{{ url_for('thumb', key=a['sha256']) }}">
+    <div class="codes">design <b>{{ a['design_uid'] }}</b> · sku <b>{{ a['product_sku'] }}</b>
+      {% if a['side'] %} · {{ a['side'] }}{% endif %}</div>
+    <div class="swatches">
+      {% for c in a['_palette'][:5] %}<span class="swatch" title="{{ c['name'] }} {{ c['hex'] }}" style="background:{{ c['hex'] }}"></span>{% endfor %}
+    </div>
+    {{ vocab_field(a, 'asset_type', vocab) }}
+    <div class="row2">{{ vocab_field(a,'style',vocab) }}{{ vocab_field(a,'primary_motif',vocab) }}</div>
+    <div class="row2">{{ vocab_field(a,'theme',vocab) }}{{ vocab_field(a,'occasion',vocab) }}</div>
+    {{ vocab_field(a,'region',vocab) }}
+    {{ text_field(a,'selling_name') }}
+    {{ text_field(a,'title') }}
+    <div class="statusrow">
+      <span class="pill">{{ a['status'] }}</span>
+      <select data-field="status">
+        {% for s in vocab['status'] %}<option {{ 'selected' if a['status']==s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn savebtn" onclick="saveAsset(this)">Save</button>
+  </div>
+{% endmacro %}
+
+{% for code, items in grouped.items() %}
+  <div class="setblock" data-set="{{ code }}">
+    <div class="sethead">
+      <span class="code">{{ code }} · {{ sets[code]['set_uid'] if sets.get(code) }}</span>
+      <input data-field="selling_name" placeholder="{{ effset(code,'selling_name') or 'Set selling name…' }}"
+             value="{{ sets[code]['manual_selling_name'] or '' if sets.get(code) }}"
+             onchange="saveSet('{{ code }}', this)">
+      <select data-field="status" onchange="saveSet('{{ code }}', this)">
+        {% for s in vocab['status'] %}<option {{ 'selected' if sets.get(code) and sets[code]['status']==s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="grid">
+      {% for a in items %}{{ asset_card(a, vocab) }}{% endfor %}
+    </div>
+  </div>
+{% endfor %}
+
+{% if loose %}
+  <div class="setblock">
+    <div class="sethead"><span class="code">UNGROUPED</span></div>
+    <div class="grid">{% for a in loose %}{{ asset_card(a, vocab) }}{% endfor %}</div>
+  </div>
+{% endif %}
+</div>
+
+{% for f in ['asset_type','style','theme','primary_motif','occasion','region'] %}
+  <datalist id="dl_{{ f }}">{% for v in vocab[f] %}<option value="{{ v }}">{% endfor %}</datalist>
+{% endfor %}
+
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

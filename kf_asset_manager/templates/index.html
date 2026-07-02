@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ app_name }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="bar">
+  <h1>{{ app_name }}</h1>
+  <span class="tag">{{ tagline }}</span>
+  <span class="spacer"></span>
+  {% if has_db %}<a class="btn ghost" href="{{ url_for('review') }}">Open review</a>{% endif %}
+</header>
+
+<div class="intro">
+  <h2>Scan an asset folder</h2>
+  <p class="muted">Point to any folder of artwork — sets, patterns, pieces, in any layout.
+     Nothing is renamed or moved. Identity is the file's content, so re-scanning after
+     you reorganise keeps every ID and every manual edit.</p>
+  <form method="post" action="{{ url_for('scan') }}">
+    <input type="text" name="root" placeholder="/path/to/your/assets" value="{{ root or '' }}" required>
+    <button class="btn" type="submit">Scan</button>
+  </form>
+  <p class="muted" style="margin-top:14px">After scanning you'll review every asset, edit
+     anything (your edits are permanent overrides), approve, then export the manifest and crosswalk.</p>
+</div>
+</body>
+</html>
