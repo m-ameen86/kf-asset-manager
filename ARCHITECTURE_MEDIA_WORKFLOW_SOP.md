@@ -1,47 +1,104 @@
 # Pre-Build Audit / SOP — Gold-Standard Media Workflow (Pilot: One Curtain)
 
 > Status: **AUDIT + SOP. No code, no implementation prompts.** This resolves the one
-> architectural question the Phase 3 closure ADR deliberately left open (is a generated
-> or composited image a Derived Artwork Source, or a new asset class?) — for the specific
-> pilot approved: Kickflip-style pattern-accurate mockup first, AI room/hero context only
-> after human approval, on one curtain product before scaling.
+> architectural question the Phase 3 closure ADR deliberately left open — is composited/
+> generated media a Derived Artwork Source, or a separate class? A narrow contract check
+> (below) found the originally-proposed mechanism (`artwork_relationship = "Mockup"`)
+> would silently corrupt SKU generation, reproduced against the running code. The
+> corrected model — Business Metadata for both media classes — is what the rest of this
+> document specifies.
 
 ---
 
-## The architectural decision this resolves
+## Narrow Contract Check — was `artwork_relationship = "Mockup"` safe to add?
 
-The ADR named this as unmade on purpose, because answering it by default (rather than
-deliberately) was the risk. The pilot's own shape answers it cleanly: a mockup that must
-preserve **exact pattern fidelity** is not the same kind of thing as a **AI-generated
-room scene**, and they should not be modeled the same way.
+**Verdict: No. Rejected on the merits, with reproduced evidence — not a Derived Artwork
+Source relationship. The SOP below reflects the corrected model.**
 
-**Decision: two distinct asset classes, mapped onto two pieces of infrastructure that
-already exist and are already proven — no new schema, no new table.**
+The original proposal treated a pattern-accurate mockup the same way a cropped cushion is
+treated: a Derived Artwork Source of the Design. That analogy breaks down on inspection,
+and the break is concrete, not stylistic.
 
-| | **Product Media** (this pilot) | **Marketing Media** (later, gated) |
+**Why the analogy fails.** A cropped cushion's pixels *are* the curtain's own pixels — the
+same photographed/rendered material, reduced. A Kickflip-style mockup composites the exact
+pattern onto an **entirely separate base image** (folds, backdrop, rod, lighting, shadow)
+that has nothing to do with the artwork's own identity. It is still the *same product*
+(a Curtain), just presented — not a different application of the artwork to a different
+product type, which is what "Derived" was built to model (Curtain → Cushion).
+
+**The concrete failure this would cause, reproduced against the real running code:**
+```
+REAL product:   KF-PRD-000001 -> SKU: KF-CUR-000001-L
+MOCKUP product: KF-PRD-000002 -> SKU: KF-CUR-000001-L   <- IDENTICAL SKU, different product_id
+Total Curtain-type products on this one design: 2  (should always be exactly 1)
+```
+SKU generation (`sku.py`) is a pure function of `(product_type, design_id, side)` — it has
+no awareness of `origin`, `artwork_relationship`, or `source_id`. Any second Artwork
+Source sharing the same `product_type` and `side` as the original — regardless of
+`origin` — silently produces a **second product with a colliding SKU**. Nothing in the
+current schema prevents this at write time; it would only surface downstream (e.g. two
+different products competing for the same Shopify handle). This is exactly the kind of
+silent contract erosion the check was asked to catch, and it would have shipped invisibly
+if the SOP alone had "approved" the relationship value without checking against the code.
+
+**The corrected model.** Both Product Media and Marketing Media use the **same existing
+mechanism** — Business Metadata — differentiated only by dimension, never by mechanism.
+`set_metadata()` is explicitly documented to have "no effect on IDs, SKUs, design
+identity, or compatibility," which is precisely the property needed here: media references
+must never be able to spawn a phantom product or collide with a real SKU. Product Media
+earns its "governs product truth" status through the **QC discipline and traceability**
+defined below, not by being modeled as if it were sellable inventory.
+
+---
+
+## The architectural decision this resolves — LOCKED
+
+**Status: LOCKED.** This is now an adopted architectural decision, not a proposal under
+review. Reopening it requires the same discipline that closed it — a deliberate,
+evidenced re-check — not a quiet exception for one convenient case.
+
+- **Product Media is not an Artwork Source.**
+- **Marketing Media is not an Artwork Source.**
+- **Both are linked through Business Metadata only.**
+- **Product Media earns trust through Product Truth QC**, not through identity or
+  artwork lineage.
+- **Marketing Media remains downstream creative output** and never becomes artwork
+  truth.
+- **No product, SKU, design, asset, or source identity is ever affected by media
+  registration** — linking or unlinking media can never mint, alter, or delete a
+  product, a Source, or a SKU.
+
+**Decision: two media classes, one linkage mechanism, differentiated by dimension and by
+the fidelity discipline applied before linking — no new Artwork Source relationship, no
+schema change.**
+
+| | **Product Media** | **Marketing Media** |
 |---|---|---|
-| **What it is** | The exact catalogued pattern, composited onto a controlled mockup base. Zero creative reinterpretation. | AI-generated room/lifestyle context. Mood and composition, not a literal product record. |
-| **Fidelity requirement** | Must be traceable, pixel-faithful to a specific Artwork Source. | Not required — that's not its job. |
-| **Where it lives in the data model** | A new **Derived Artwork Source** of the existing Design — the same mechanism already used for cropped cushions. New `artwork_relationship` value: `"Mockup"`. | **Business Metadata** — the existing generic entity/dimension/value table, tagging the design/product with a reference, not claiming to be the artwork. |
-| **Who/what produces it** | Human, in Photoshop, from an approved source pattern. | AI (Google Flow or similar), only after Product Media is approved. |
+| **What it is** | The exact catalogued pattern, composited onto a controlled mockup base. Zero creative reinterpretation. Fidelity-governed, tied to what the customer is actually buying. | Lifestyle, hero, campaign, social, AI-generated contextual imagery. May be creative, but never artwork truth. |
+| **Fidelity requirement** | Must pass Product Truth QC (below) before it exists as an approved asset. | Must remain linked to the product/design; fidelity to the literal pattern is not the point. |
+| **Where it lives in the data model** | `business_metadata`: `entity_type="product"`, `dimension="product_media"`, value = `"APPROVED\|<file reference>"` (filename already encodes Product/Design ID + side, per Section 2). | `business_metadata`: `entity_type="design"`, `dimension="marketing_media"`, value = `"APPROVED\|<file reference>"`. |
+| **Who/what produces it** | Human, in Photoshop, from a QC-verified source pattern. | AI (Google Flow or similar), only after Product Media is approved. |
 
-This reuses `ensure_source()` (v2.0-a) and `set_metadata()` (v1.6) exactly as they already
-work. **Nothing here requires new code to be functionally correct** — only a dedicated
-ingestion tool (to make it convenient rather than a manual one-off) would be future work,
-and that is explicitly not in scope for this document.
+This reuses `set_metadata()` (v1.6) exactly as it already works — proven, tested,
+identity-safe by construction. **Nothing here requires new code to be functionally
+correct.** A dedicated ingestion tool (for convenience at scale) remains legitimate future
+work, not built here.
 
 ---
 
 ## 1. Asset class: product media vs. marketing media
 
-Settled above. The dividing line is fidelity, not file format or tool used: if it claims
-to show the real pattern, it's Product Media and must be traceable to a specific,
-verified Artwork Source. If it's mood/context/generated scenery, it's Marketing Media and
-must never be presented as, or confused with, an accurate depiction of the product.
+Settled above (and corrected by the contract check). The dividing line is fidelity, not
+file format, tool used, or data-model mechanism — both classes link the same way
+(Business Metadata). If it claims to show the real pattern, it's Product Media and must
+pass Product Truth QC before it exists as an approved asset. If it's mood/context/
+generated scenery, it's Marketing Media and must never be presented as, or confused with,
+an accurate depiction of the product.
 
 **This line must never move by default.** A future person adding "just one AI-touched
-product shot" without going through this distinction would be exactly the kind of
-default-by-accident decision this document exists to prevent.
+product shot" without going through this distinction — or a future change that models
+Product Media as an Artwork Source without re-running the contract check above — would be
+exactly the kind of default-by-accident decision this document exists to prevent.
 
 ---
 
@@ -99,26 +156,64 @@ been approved for that specific product.
 
 ---
 
-## 4. QC checklist (Product Media — must pass before anything is "gold standard")
+## 4. QC checklist (two stages — Product Truth QC must pass first, always)
 
-- [ ] **Correct Source/side verified against the system of record** — looked up via
-  `db.get_vision()` / the product's Artwork Sources, not eyeballed or assumed. This is
-  the single highest-risk step (see Critical risk below).
-- [ ] Pattern scale and repeat match the source artwork exactly — no stretching,
-  squashing, or unintended tiling drift.
-- [ ] Colour fidelity — the mockup's rendered colours match the source pattern, not
-  shifted by the mockup base's lighting/rendering.
-- [ ] Correct product-type base used (a curtain base, not a cushion or tapestry base).
-- [ ] Filename matches the naming convention exactly, including the correct `<side>` tag.
-- [ ] **Zero generative/AI elements present** — this is Product Media; any AI touch at
-  this stage disqualifies it from the gold-standard category.
-- [ ] Export format/resolution meets the intended downstream use (exact platform specs
-  are a separate, later decision — not blocking this pilot).
-- [ ] Reviewer identified and sign-off recorded (even if that's just you, for now — the
-  point is an explicit, recorded approval step, not an implicit one).
+Per requirement #9: Product Truth and Marketing Quality are **separate QC passes**.
+Nothing proceeds to Marketing Quality QC — or to any AI generation step — until Product
+Truth QC has passed in full.
 
-Only after every item passes does the file move from `00_Working` to
-`01_Product_Mockups` and get linked into the Asset Manager (Section 8).
+### Stage A — Product Truth QC (hard gates, all mandatory)
+
+1. **Identity verification.** Confirm Product ID, Design ID, Asset ID, and the correct
+   L/R side **before compositing begins** — looked up against the system of record
+   (`db.get_vision()` / the product's Artwork Sources), never assumed or eyeballed. This
+   is the highest-risk single step in the whole workflow (see Critical risk below) and
+   must happen first, not as an afterthought.
+2. **Orientation.** No unintended flip (horizontal or vertical) or rotation of the pattern
+   relative to the source artwork.
+3. **Repeat scale.** Pattern repeat scale verified against the intended physical product
+   dimensions — a mockup that silently rescales the repeat misrepresents what the
+   customer will actually receive.
+4. **Crop and placement.** Commercially strong composition, without misrepresenting the
+   actual product (e.g. hiding a repeat seam that would be visible in reality, or cropping
+   out a design element that's actually part of the pattern).
+5. **Colour fidelity.** Matches the approved artwork; no unwanted warm (or any directional)
+   colour grading introduced by the mockup's rendering or lighting in shots intended to be
+   colour-truth references.
+6. **Realistic fabric behaviour.** Folds, seams, hems, heading style, translucency,
+   gravity, and shadow all read as physically plausible for the actual product — not
+   generic or implausible drape that would misrepresent how the fabric hangs.
+7. **Lighting purpose, distinguished deliberately.** For curtains specifically: backlight
+   used for translucency/pattern-glow shots, raking side light used for fold/texture
+   shots — these serve different evidentiary purposes and should not be conflated or
+   substituted for each other without a reason.
+8. **100% zoom artifact inspection.** Every mockup inspected at full pixel resolution for
+   mask edges, warped motifs, duplicated elements, AI/rendering artifacts, impossible
+   folds, and inconsistent shadow direction — a defect invisible at thumbnail size is
+   still a defect.
+9. **Zero generative/AI elements present.** This is Product Media; any AI touch at this
+   stage disqualifies it from the gold-standard category, full stop.
+10. **Filename and folder correct.** Matches the Section 2 naming convention exactly
+    (including the `<side>` tag) and sits in `00_Working` until every gate above passes.
+
+**Only after all ten items pass** does the file move to `01_Product_Mockups` and get
+linked into the Asset Manager as an `"APPROVED|…"` entry (Section 8). This is the gate for
+"gold standard," not a subjective judgment call.
+
+### Stage B — Marketing Quality QC (separate pass, Product Media only as input)
+
+Applies only to Marketing Media, and only once the Product Media it's built from has
+already passed Stage A in full. Composition, mood, brand consistency, and platform framing
+are evaluated here — but this pass never re-litigates pattern fidelity, since that was
+already the entire point of Stage A. A defect in Stage B never excuses skipping Stage A;
+they are independent, sequential gates, not alternates.
+
+### Benchmark
+
+**The first curtain product to pass both stages becomes the gold-standard benchmark** —
+the concrete reference future mockups are judged against, not just a description in this
+document. Nothing scales to cushions or tapestries until that benchmark exists and has
+been reviewed.
 
 ---
 
@@ -171,24 +266,49 @@ the backup work just completed.
 
 ---
 
-## 8. How final media links back to Asset Manager product/design IDs
+## 8. How final media links back to Asset Manager product/design IDs — LOCKED
 
-**This works today, with zero new code**, using functions that already exist and are
-already tested:
+Neither media class ever becomes an Artwork Source or a Product — both link via
+**Business Metadata only** (`set_metadata` / `get_metadata` / `find_by_metadata`),
+explicitly guaranteed to have no effect on IDs, SKUs, identity, or compatibility. This
+section specifies the exact, simple convention — grounded in what the existing API
+actually does today, not a capability that doesn't yet exist.
 
-- **Product Media** → recorded as a Derived Artwork Source of the Design:
-  `ensure_source(design_id, "Curtain", origin="Derived", artwork_relationship="Mockup", derived_from_source=<original_source_id>, side=<L/R/None>)`
-  — exactly the same call shape already proven for derived cushions in v2.0-a, just a new
-  `artwork_relationship` value.
-- **Marketing Media** (once it exists, later) → recorded via
-  `set_metadata(entity_type="design", entity_id=design_id, dimension="marketing_media", value=<file reference>)`
-  — the existing, already-tested Business Metadata table, purely as a tag/pointer, never
-  as identity.
+**What the real API supports today, precisely:** `set_metadata()` is additive only
+(`INSERT OR IGNORE`) — there is no update or delete method. Any design for "status" or
+"reversibility" has to work within that, not assume a capability that isn't there.
 
-For this pilot, that linking step is a **manual, documented action** — a human runs the
-existing function once, the same way early acceptance work was done by hand before
-`vision_accept.py` existed. A dedicated ingestion command (to make this convenient at
-scale) is legitimate future work, but is explicitly not built here.
+**The convention:**
+
+- **Dimension:** `"product_media"` for Product Media, `"marketing_media"` for Marketing
+  Media. `entity_type="product"` for Product Media (tied to the sellable unit),
+  `entity_type="design"` for Marketing Media (tied to the artwork generally, per Section 2).
+- **Value format:** a single, explicit, human-readable string — `"<STATUS>|<file
+  reference>"`. No JSON, nothing opaque. Example:
+  `set_metadata("product", "KF-PRD-000001", "product_media", "APPROVED|KF-PRD-000001_MOCKUP_L_v01.jpg")`
+- **The file reference itself already encodes Product ID, Design ID, and side** (Section
+  2's naming convention), so every link is independently verifiable in both directions —
+  from the database out to the file, and from the filename back to a specific, checkable
+  ID — without needing to trust the metadata row alone.
+
+**How this stays reversible without a delete operation:** nothing is ever destructively
+removed — consistent with this project's data-preservation discipline everywhere else
+(never silently lose a record). "Reversing" a link means **recording a new status
+entry**, not deleting the old one:
+- Superseding v01 with v02: write `"SUPERSEDED|…_v01.jpg"` and `"APPROVED|…_v02.jpg"` as
+  two new rows. The v01 approval record still exists — an honest history, not an erased
+  one.
+- Rejecting a link made in error: write `"REJECTED|…_v01.jpg"` as a new row.
+- The **current, effective** link for a product is: the most recent row (by `created_at`,
+  a real column already in the schema) for that entity+dimension whose status is
+  `APPROVED`. This is a plain, documented query pattern against the existing table — not
+  new application code, just how to read what's already there.
+
+**Explicitly deferred, not built here:** a convenience helper (e.g. "get the current
+approved media for this product" in one call) would make the query pattern above nicer to
+use, but is legitimate future tooling work, not part of this SOP. For this pilot, linking
+is a manual, documented action — a human runs `set_metadata()` once per status change, the
+same way early acceptance work was done by hand before `vision_accept.py` existed.
 
 ---
 
@@ -198,14 +318,21 @@ scale) is legitimate future work, but is explicitly not built here.
 - **Wrong side/source used in the mockup.** This is not hypothetical — real production
   data from this same catalogue showed 80% of fully-analysed curtain pairs have genuinely
   different Left/Right artwork. Compositing the wrong side's pattern into a mockup would
-  produce a confidently wrong "gold standard." The QC checklist's first item exists
-  specifically because of this measured, real risk, not as a generic caution.
+  produce a confidently wrong "gold standard." Stage A gate #1 exists specifically because
+  of this measured, real risk, not as a generic caution.
+- **Modeling Product Media as a Derived Artwork Source (the original proposal) — checked,
+  reproduced, and rejected.** Confirmed against the running code: a same-product-type
+  Derived Source silently produces a second product with a colliding SKU (`KF-CUR-000001-L`
+  generated by two different `product_id`s simultaneously), and a design incorrectly ends
+  up with two "Curtain" products where exactly one should exist. Closed by the corrected
+  model above (Business Metadata only) — recorded here so the reasoning stays visible for
+  whoever reads this later, not just the conclusion.
 
 **Major**
 - **No automated verification (yet) that the composited pattern actually matches the
-  claimed source ID.** For this pilot, that check is entirely human — a future perceptual-
-  hash comparison between the smart object's source layer and the actual asset file is a
-  reasonable later enhancement, explicitly deferred here.
+  claimed source ID.** For this pilot, that check is entirely human (Stage A gate #1). A
+  future perceptual-hash comparison between the smart object's source layer and the
+  actual asset file is a reasonable later enhancement, explicitly deferred here.
 - **Naming/folder discipline is a human process risk**, not a code risk, until a
   dedicated tool exists. Mitigated by making the convention in Sections 2–3 as explicit
   and ID-anchored as possible.
@@ -216,15 +343,17 @@ scale) is legitimate future work, but is explicitly not built here.
 
 **Observation**
 - Once proven on one curtain, scaling to cushions and tapestries is a **rollout of this
-  same SOP**, not a new design — the Derived-Source mechanism and the QC discipline
-  already generalize across product types without modification.
+  same SOP**, not a new design — the Business Metadata linkage and the two-stage QC
+  discipline already generalize across product types without modification, and without
+  any of the collision risk the rejected model would have introduced.
 
 ---
 
 ## Pilot scope and scale-up gate
 
 **In scope now:** one curtain product, through the full pipeline — correct-source
-verification, Photoshop compositing, QC checklist, manual linking via `ensure_source()`.
+verification, Photoshop compositing, the full two-stage QC checklist, manual linking via
+`set_metadata()`.
 
 **Explicitly not in scope now:** any code/tooling, any AI generation (Flow or otherwise),
 scaling to a second product of any type, exact export-resolution specs for Shopify.
