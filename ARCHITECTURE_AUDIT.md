@@ -4,6 +4,45 @@ Audited against **Frozen Architecture v1.4**. Most recent phase first.
 
 ---
 
+## `audit.db` Backup & Restore (Phase 3 closure prerequisite #2)
+
+**What changed?** New `db_backup.py`: `backup_database()` uses SQLite's built-in online
+backup API (`Connection.backup()`), proven safe against a **live, open, uncheckpointed
+WAL-mode database** — the exact risk named in the pre-build audit — not a raw file copy.
+`restore_database()` clears stale destination sidecars before restoring. `verify_restore()`
+does a real content comparison (table counts, accepted `display_title` values, AI
+suggestions including `is_match`, and `schema_migrations` state) between two databases,
+not just "the file exists." `resolve_backup_dir()` implements the configurable
+destination order (explicit arg → `KF_BACKUP_DIR` env var → same-drive `backups/`
+fallback), with the same-drive case explicitly documented, in both code and CLI output,
+as operational recovery only — never presented as hardware-failure protection.
+`build_graph --fresh` now takes an automatic safety snapshot before wiping and **refuses
+to proceed** if that snapshot can't be created, rather than wiping without one.
+
+**Tests:** `tests_db_backup` 34/34 — reproduces the real WAL-safety scenario directly (a
+live connection with genuinely unmerged `-wal` content, backed up without closing or
+checkpointing, verified to contain the committed data), the configurable-destination
+resolution order, `restore_database` refusing to clobber without `overwrite=True` and
+clearing stale sidecars, `verify_restore` catching a faithful restore as `all_ok=True`
+with each individual check broken out, the `--fresh` integration producing a real
+recoverable snapshot *and* correctly wiping the live database afterward (proving the
+snapshot was actually necessary), and — critically — `--fresh` **refusing** to wipe when
+the snapshot destination is invalid, with the original data proven to survive that
+refusal. Source-inspected to confirm no import of `vision_provider`, `sku`,
+`shopify_export`, or `vision_review` — no AI/network/SKU/Shopify surface touched. Full
+regression green (20/43/12/16/8/11/20/22/39/20/17/17/36/28/29/48/11/27/42/34 — 500 total
+assertions across 20 suites).
+
+**Documentation:** `DATABASE_LIFECYCLE.md` extended with backup/restore usage;
+`ARCHITECTURE_PREBUILD_AUDIT_DB_BACKUP.md` remains the audit of record.
+
+**Deliberately out of scope** (per the audit): scheduling, cloud sync, Time Machine
+configuration, external-drive partitioning, retention/rotation policy. These depend on
+environmental facts (second drive availability, existing Time Machine coverage) not yet
+provided.
+
+---
+
 ## ★ PHASE 3 CLOSED — see `ARCHITECTURE_ADR_PHASE3_CLOSURE.md`
 
 Phase 3 (Vision: colour extraction, provider scaffolding, real execution, prompt tuning,

@@ -126,3 +126,77 @@ db = model.IdentityDB('<path-to-audit.db>')
 print(db.applied_migrations())
 "
 ```
+
+---
+
+## Backup & restore
+
+See `ARCHITECTURE_PREBUILD_AUDIT_DB_BACKUP.md` for the full audit behind this. Summary
+for day-to-day use:
+
+### Why this exists
+
+`audit.db` now holds real, non-derivable data — paid AI analysis and accepted manual
+titles — with no redundancy of any kind. The database runs in **WAL mode**, so a naive
+file copy (Finder drag-copy, plain `cp`) can silently miss recently committed data still
+sitting in a separate `-wal` file. This tool never does a raw file copy of a live
+database — it uses SQLite's built-in online backup API, which correctly captures a
+complete, consistent snapshot regardless of WAL state, without needing the database
+closed or idle.
+
+### Creating a backup
+
+```bash
+python -m kf_asset_manager.db_backup --db <path-to-audit.db> [--backup-dir <dir>] [--label <name>]
+```
+
+Produces a timestamped, self-contained `.db` file at the resolved destination. Safe to run
+against a database that's actively in use.
+
+### Where backups go (configurable — never a hard-coded drive)
+
+Resolved in order:
+1. an explicit `--backup-dir` flag,
+2. the `KF_BACKUP_DIR` environment variable,
+3. a `backups/` folder next to the database itself (same-drive fallback).
+
+**The same-drive fallback is explicitly NOT protection against a physical drive
+failure.** It protects against accidentally deleting or corrupting the live file, or
+against a bad `--fresh` run — nothing more. If the drive itself fails, a same-drive backup
+is lost along with everything else. Point `--backup-dir` or `KF_BACKUP_DIR` at a genuinely
+separate drive (or, later, Time Machine or cloud storage — deliberately out of scope for
+now) for real hardware-failure protection.
+
+### Automatic protection before `--fresh`
+
+`build_graph --fresh` now takes a safety snapshot automatically, before wiping anything.
+If that snapshot cannot be created for any reason (unwritable destination, etc.),
+`--fresh` **refuses to proceed** rather than wipe without one — the destructive rebuild
+never runs without a safety net in place.
+
+### Restoring
+
+```bash
+python -m kf_asset_manager.db_backup --db <path> --restore <backup-file> [--dest <path>] [--overwrite] [--verify-against <original-db>]
+```
+
+`--verify-against` runs a real content comparison (identity counts, accepted titles, AI
+suggestions, schema migration state) between the restored database and a reference
+database, and reports `OK` or the specific mismatch — not just "the file copied
+successfully."
+
+### Listing existing backups
+
+```bash
+python -m kf_asset_manager.db_backup --db <path> [--backup-dir <dir>] --list
+```
+
+Read-only; no retention or rotation logic exists yet (deliberately out of scope — see the
+backup audit's Open Questions).
+
+### What this does NOT do (deliberately, for now)
+
+No scheduling, no cloud sync, no Time Machine configuration, no external-drive
+partitioning, no retention policy. These depend on facts about your actual environment
+(is Time Machine already running? is there a second drive available?) that should be
+answered before, not during, implementation — see the backup audit document.

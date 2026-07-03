@@ -30,7 +30,12 @@ def main(argv=None):
                          "paid analysis), local colour extraction, and any manual "
                          "display_title overrides — none of which can be recovered from "
                          "the image library alone. Only use this when you deliberately "
-                         "want a clean throwaway database.")
+                         "want a clean throwaway database. A safety snapshot is taken "
+                         "automatically before the wipe (see --backup-dir).")
+    ap.add_argument("--backup-dir", default=None,
+                    help="where the automatic pre-fresh safety snapshot is written "
+                        "(default: $KF_BACKUP_DIR, else a 'backups/' folder next to the "
+                        "database). Configurable — never assumes a specific drive.")
     args = ap.parse_args(argv)
 
     root = Path(args.root)
@@ -41,6 +46,16 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     db_path = args.db or str(out / "audit.db")
     if args.fresh and Path(db_path).exists():
+        from . import db_backup
+        try:
+            snap = db_backup.backup_database(db_path, args.backup_dir, label="pre-fresh")
+            print(f"--fresh: safety snapshot written to {snap} before wiping", file=sys.stderr)
+        except db_backup.BackupError as e:
+            print(f"--fresh REFUSED: safety snapshot could not be created ({e}). "
+                 f"Not proceeding with a destructive wipe without one — fix the backup "
+                 f"destination (see --backup-dir / $KF_BACKUP_DIR) and try again.",
+                 file=sys.stderr)
+            return 2
         print(f"--fresh: wiping {db_path} (vision results, colours, and manual title "
              f"overrides will be lost)", file=sys.stderr)
         Path(db_path).unlink()

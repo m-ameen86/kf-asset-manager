@@ -56,12 +56,16 @@ decision. Ordered by priority.
   (per the technical-type folder layout) and re-audit at full scale.
 
 ## Prerequisites for Phase 5 (from the Phase 3 closure ADR — `ARCHITECTURE_ADR_PHASE3_CLOSURE.md`)
+- [x] **`audit.db` backup & restore. BUILT.** WAL-safe backup/restore via
+  `db_backup.py`, automatic safety snapshot before `--fresh` (which now refuses to wipe
+  if the snapshot fails), configurable destination (never hard-coded to a drive), and
+  proven restore verification. See `ARCHITECTURE_PREBUILD_AUDIT_DB_BACKUP.md` for the
+  audit and `DATABASE_LIFECYCLE.md` for usage. Retention policy and off-drive/cloud
+  storage remain deliberately deferred pending a second drive becoming available.
 - [ ] **Decide the standing Shopify sync path** — CSV-staging vs. direct API vs. both,
   with one canonical, plus real sync-state tracking if ongoing use is expected. Both paths
   are now proven working (CSV import and a live direct-API title push were each verified
   against the real Karen Fabrics Staging store); neither is yet decided as authoritative.
-- [ ] **Backup strategy for `audit.db`** — still absent; it now holds non-derivable, paid
-  AI data with zero redundancy.
 - [ ] **Legacy v0.6 code disposition** — remove or clearly quarantine (`app.py`, `db.py`,
   old `ingest.py`/`exporters.py`/`classify.py`, `templates/`, `static/`) before the
   codebase grows further around it.
