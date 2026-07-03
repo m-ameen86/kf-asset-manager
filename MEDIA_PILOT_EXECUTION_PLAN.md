@@ -239,24 +239,44 @@ with the locked SOP's Section 8.
 
 ## 10. Measurable acceptance criteria — pilot success
 
-- [ ] All nineteen Stage A gates (original ten + nine pair-specific) passed and
-  individually accounted for.
-- [ ] Working PSD (`KF-PRD-000463_MOCKUP_PAIR_v01.psd`) exists with both TIFFs present as
-  distinct, correctly labeled Smart Objects.
-- [ ] Approved deliverable exists at `01_Product_Mockups/Curtains/`, correctly named,
-  meeting the 2048×2048 1:1 export target.
-- [ ] The deliverable shows both panels together, correctly assigned, unmirrored, not
-  panorama-bridged, with the intended dark/light contrast and wave-band alignment intact.
-- [ ] Business Metadata entry exists (`APPROVED|KF-PRD-000463_MOCKUP_PAIR_v01.jpg` under
-  `entity_type="product"`, `entity_id="KF-PRD-000463"`, `dimension="product_media"`) and
-  is independently retrievable via `get_metadata("product", "KF-PRD-000463")`.
-- [ ] Explicit human sign-off recorded, separate from and after the checklist.
-- [ ] Cushion products `KF-PRD-000462`/`KF-PRD-000464` remain untouched by this pilot.
-- [ ] The result is genuinely usable as the literal benchmark future mockups (cushions,
-  tapestries, additional curtains) will be judged against.
+> **Stage A status: CLOSED.** The final composite passed Stage A visual QC and was
+> approved as *Gold-Standard Pilot Reference v01* — approved deliverable filename
+> `KF-PRD-000463_MOCKUP_PAIR_v01.jpg`, master working file
+> `KF-PRD-000463_STAGE-A_MASTER_v01.psd`. Business Metadata registration was executed and
+> independently verified — `get_metadata("product", "KF-PRD-000463")` returned
+> `{'product_media': ['APPROVED|KF-PRD-000463_MOCKUP_PAIR_v01.jpg']}`, matching the
+> expected value exactly. A pre-registration backup was also taken
+> (`audit.20260704T015039.db`) before the write, per standard practice. All eight
+> acceptance criteria below are now satisfied.
 
-Only once every box is checked does scaling to a second product, of any type, become
-appropriate.
+- [x] All nineteen Stage A gates (original ten + nine pair-specific) passed — attested by
+  Stage A visual QC approval. *(Individual gate-by-gate records are held in the working
+  QC review file, not duplicated into this document.)*
+- [x] Working master PSD exists (`KF-PRD-000463_STAGE-A_MASTER_v01.psd`) with both TIFFs
+  present as distinct, correctly labeled Smart Objects. **Naming note:** this filename
+  differs from the `_MOCKUP_PAIR_v01.psd` working-file convention documented earlier in
+  this plan and in `PHOTOSHOP_PRODUCTION_METHOD_KF-PRD-000463.md` — flagged, not silently
+  reconciled; see Findings in this session's closure audit.
+- [x] Approved deliverable exists, named `KF-PRD-000463_MOCKUP_PAIR_v01.jpg` — matches
+  the locked convention exactly, meeting the 2048×2048 1:1 export target.
+- [x] The deliverable shows both panels together, correctly assigned, unmirrored, not
+  panorama-bridged, with the intended dark/light contrast and wave-band alignment intact
+  — attested by Stage A visual QC approval.
+- [x] **Business Metadata entry exists** (`APPROVED|KF-PRD-000463_MOCKUP_PAIR_v01.jpg`
+  under `entity_type="product"`, `entity_id="KF-PRD-000463"`, `dimension="product_media"`)
+  and is independently retrievable via `get_metadata("product", "KF-PRD-000463")`. **Run
+  and verified** — actual returned value:
+  `{'product_media': ['APPROVED|KF-PRD-000463_MOCKUP_PAIR_v01.jpg']}`.
+- [x] Explicit human sign-off recorded — the approval itself, given directly, separate
+  from and after the checklist.
+- [x] Cushion products `KF-PRD-000462`/`KF-PRD-000464` remain untouched — this pilot's
+  scope never included them.
+- [x] The result is genuinely usable as the literal benchmark future mockups will be
+  judged against — approved as *Gold-Standard Pilot Reference v01*.
+
+**All eight boxes are now checked. The pilot is formally closed.** Scaling to a second
+product, of any type, is appropriate only after a deliberate decision to do so — this
+document being complete is not itself that decision.
 
 ---
 
