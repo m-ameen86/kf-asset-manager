@@ -7,6 +7,14 @@
 > `PHOTOSHOP_PRODUCTION_METHOD_KF-PRD-000463.md`, and
 > `ARCHITECTURE_ADR_PHASE3_CLOSURE.md`.
 
+> **Closure note:** Stage B for `KF-PRD-000463` is now closed —
+> see `STAGE_B_CLOSURE_KF-PRD-000463.md`. Section 2's assumption below (that Stage A's
+> literal flattened pixels would be the compositing source) was found incorrect during
+> production and superseded by `PORTABLE_CURTAIN_ASSET_AUDIT_KF-PRD-000463.md`. The rest
+> of this document's content — allowed/prohibited transformations, the reference
+> hierarchy, and the QC gate definitions — stood as the governing standard Stage B was
+> actually measured against and closed on.
+
 ---
 
 ## 1. Should Stage B begin now, on this same product, or does another Stage A proof come first?
